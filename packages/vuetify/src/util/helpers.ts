@@ -519,3 +519,13 @@ export function composedPath (e: Event): EventTarget[] {
   }
   return path
 }
+
+export function genRandomId (length = 5): string {
+  const result = []
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  const charactersLength = characters.length
+  for (let i = 0; i < length; i++) {
+    result.push(characters.charAt(Math.floor(Math.random() * charactersLength)))
+  }
+  return result.join('')
+}
