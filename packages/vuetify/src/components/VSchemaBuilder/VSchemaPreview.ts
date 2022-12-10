@@ -1,28 +1,21 @@
 
 // Extensions
-import VSystemBar from '../VSystemBar/VSystemBar'
-import VSpacer from '../VGrid/VSpacer'
-import VDivider from '../VDivider/VDivider'
 import VSheet from '../VSheet/VSheet'
-import VSchemaEditor from '../VSchemaEditor/VSchemaEditor'
 import VSchemaRenderer from '../VSchemaRenderer/VSchemaRenderer'
-import DynamicContext from './../../mixins/renderer/DynamicContext'
 
 // Utils
-import { genTooltipButton } from '../VSchemaEditor/helpers'
 import { DefaultScreenSizeDictionary, ScreenSize, ScreenSizeProperties } from './screenSizes'
 
 // Types
 import Vue, { PropType, VNode } from 'vue'
-import { SchemaDefinition } from 'types/services/renderer'
-import { mergeDeep } from '../../util/helpers'
+import { AsyncComponentFactory } from 'vue/types/options'
 
 /* @vue/component */
 export default Vue.extend({
   name: 'v-schema-preview',
   props: {
     schemasDictionary: {
-      type: Object as PropType<{[key: string]: SchemaDefinition }>,
+      type: Object as PropType<{[key: string]: AsyncComponentFactory }>,
       default: null,
     },
     value: {

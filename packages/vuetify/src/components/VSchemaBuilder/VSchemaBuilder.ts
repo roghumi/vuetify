@@ -1,21 +1,23 @@
 
 // Extensions
+import VTreeview from '../VTreeview/VTreeview'
 import VSystemBar from '../VSystemBar/VSystemBar'
 import VSpacer from '../VGrid/VSpacer'
 import VDivider from '../VDivider/VDivider'
 import VSheet from '../VSheet/VSheet'
 import VSchemaEditor from '../VSchemaEditor/VSchemaEditor'
+import VSchemaBuilderEntry from './VSchemaBuilderEntry'
 import VSchemaPreview from './VSchemaPreview'
 import VLabel from '../VLabel/VLabel'
-import VDraggableDivider from './VDraggableDivider'
+import VSplitSheet from '../VSplitSheet/VSplitSheet'
 
 // Utils
 import { genTooltipButton, genOptionsMenu, SchemaEditorMenuOptionItem } from '../VSchemaEditor/helpers'
 import { DefaultScreenSizeDictionary, ScreenSize, ScreenSizeProperties } from './screenSizes'
 
 // Types
-import Vue, { PropType, VNode } from 'vue'
-import { SchemaDefinition } from 'types/services/renderer'
+import { PropType, VNode } from 'vue'
+import { AsyncComponentFactory } from 'vue/types/options'
 import { mergeDeep } from '../../util/helpers'
 
 export enum SchemaBuilderViewMode {
@@ -32,7 +34,7 @@ export default VSchemaEditor.extend({
   props: {
     label: String,
     schemasDictionary: {
-      type: Object as PropType<{[key: string]: SchemaDefinition }>,
+      type: Object as PropType<{[key: string]: AsyncComponentFactory }>,
       default: null,
     },
     screenSizeDictionary: {
@@ -148,9 +150,35 @@ export default VSchemaEditor.extend({
         SchemaBuilderViewMode.Code,
       ].includes(this.viewMode as SchemaBuilderViewMode)
     },
+    builderItems (): any[] {
+      const filterredReduce = (flattened: any[], item: any) => {
+        if (item.id === 'children') {
+          flattened.push(...(item.children?.reduce(filterredReduce, []) ?? []))
+        } else if (!isNaN(item.id)) {
+          flattened.push({
+            ...item,
+            children: Array.isArray(item.children)
+              ? item.children?.reduce(filterredReduce, []) : item.children,
+          })
+        }
+        return flattened
+      }
+      return this.items.reduce(filterredReduce, [])
+    },
   },
 
   methods: {
+    genTreeview (): VNode {
+      return this.$createElement(VTreeview, {
+        props: {
+          items: this.builderItems,
+          dense: this.dense,
+        },
+        scopedSlots: {
+          label: e => this.genScoppedEditorEntry(e),
+        },
+      }, [])
+    },
     genPreviewModeButtons (): VNode[] {
       return [
         {
@@ -251,12 +279,31 @@ export default VSchemaEditor.extend({
     genSchemaEditor (): VNode {
       return this.genTreeview()
     },
-    genDraggableDivider (): VNode {
-      return this.$createElement(
-        VDraggableDivider,
+    genDefaultEditorEntry (e: any): VNode[] {
+      return [this.$createElement(
+        VSchemaBuilderEntry,
         {
+          props: {
+            itemMeta: e.item.meta,
+            itemOptionsMenu: this.getOptionsForItem(e.item.meta),
+            schemasDictionary: this.availableSchemas,
+            labelClass: this.entryLabelClass,
+          },
+          on: {
+            remove: this.onRemoveItem,
+            'make-empty': this.onMakeItemEmpty,
+            'make-null': this.onMakeItemNull,
+            'make-undfined': this.onMakeItemUndifined,
+            'move-up': this.onMoveItemUp,
+            'move-down': this.onMoveItemDown,
+            'move-first': this.onMoveItemFirst,
+            'move-last': this.onMoveItemLast,
+            'add-child': this.onAddChildToItem,
+            'update-key': this.onUpdateItemKey,
+            'update-value': this.onUpdateItemValue,
+          },
         }
-      )
+      )]
     },
     genToolbar (): VNode {
       return this.$createElement(
@@ -278,6 +325,27 @@ export default VSchemaEditor.extend({
         ]
       )
     },
+    genSplitSheet (): VNode[] {
+      return [
+        this.$createElement(
+          VSplitSheet,
+          {
+            props: {
+              sheets: ((this.isSchemaEditorVisible ? 1 : 0) + (this.isPreviewVisible ? 1 : 0)),
+              value: [0.3],
+            },
+            scopedSlots: {
+              sheet0: sheet => {
+                return this.genSchemaEditor()
+              },
+              sheet1: sheet => {
+                return this.genPreviewScreen()
+              },
+            },
+          },
+        ),
+      ]
+    },
   },
 
   render (h) {
@@ -292,9 +360,7 @@ export default VSchemaEditor.extend({
             staticClass: 'd-flex flex-row flex-grow-1',
           },
           [
-            !this.isSchemaEditorVisible || this.genSchemaEditor(),
-            !this.isSchemaEditorVisible || this.genDraggableDivider(),
-            !this.isPreviewVisible || this.genPreviewScreen(),
+            (this.isSchemaEditorVisible || this.isPreviewVisible) ? this.genSplitSheet() : false,
           ]),
       ])
   },

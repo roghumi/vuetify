@@ -46,7 +46,7 @@ export default Vue.extend({
   },
 
   methods: {
-    onContextValueChanged () {
+    onContextValueChanged (): void {
       // emit update event in component if you wish
     },
     evaluateDynamicValue (context: Component, callback: RendererDynamicProperty): any {

@@ -1,10 +1,6 @@
 import Vue from 'vue'
-import { VNodeChildren, VNode } from 'vue/types'
-import { VNodeData } from 'vue/types/umd'
-import { AsyncComponentFactory, PropType, AsyncComponent, Component } from 'vue/types/options'
-import { RendererableSchema, RendererDynamicProperty, RendererDynamicUpdate } from 'types/services/renderer'
 // Utilities
-import { mergeDeep, getNestedValue } from '../../util/helpers'
+import { getNestedValue } from '../../util/helpers'
 
 export function setNestedValue (context: any, obj: {[key: string]: any}, path: (string | number)[], def: any): any {
   const last = path.length - 1
@@ -22,7 +18,7 @@ export function setNestedValue (context: any, obj: {[key: string]: any}, path: (
 }
 
 export default Vue.extend({
-  data () {
+  data (): any {
     return {
       m__virtValue: {},
     }

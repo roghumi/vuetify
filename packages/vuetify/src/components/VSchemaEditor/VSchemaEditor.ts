@@ -9,7 +9,7 @@ import VLabel from '../VLabel/VLabel'
 import VSchemaEditorEntry from './VSchemaEditorEntry'
 
 // Types
-import { PropType, VNode } from 'vue'
+import { PropType, VNode, VNodeChildren } from 'vue'
 import { SchemaItemMaker } from 'types/services/renderer'
 
 // Utils
@@ -22,6 +22,7 @@ import {
 } from './helpers'
 import DefaultSchemaItemMakers from './schemaItemMakers'
 import { mergeDeep, genRandomId } from '../../util/helpers'
+import { NormalizedScopedSlot, ScopedSlotChildren } from 'vue/types/vnode'
 
 export type SchemaRootType = 'object' | 'array'
 
@@ -270,7 +271,6 @@ export default VSheet.extend({
         this.$emit('input', this.internalValue)
       })
     },
-
     getOptionsForItem (item: SchemaEditorItemMeta): Array<SchemaEditorMenuOptionItem> {
       return [
         {
@@ -529,32 +529,40 @@ export default VSheet.extend({
           dense: this.dense,
         },
         scopedSlots: {
-          label: e => (this.$createElement(
-            VSchemaEditorEntry,
-            {
-              props: {
-                itemMeta: e.item.meta,
-                itemOptionsMenu: this.getOptionsForItem(e.item.meta),
-                schemasDictionary: this.availableSchemas,
-                labelClass: this.entryLabelClass,
-              },
-              on: {
-                remove: this.onRemoveItem,
-                'make-empty': this.onMakeItemEmpty,
-                'make-null': this.onMakeItemNull,
-                'make-undfined': this.onMakeItemUndifined,
-                'move-up': this.onMoveItemUp,
-                'move-down': this.onMoveItemDown,
-                'move-first': this.onMoveItemFirst,
-                'move-last': this.onMoveItemLast,
-                'add-child': this.onAddChildToItem,
-                'update-key': this.onUpdateItemKey,
-                'update-value': this.onUpdateItemValue,
-              },
-            }
-          )),
+          label: e => this.genScoppedEditorEntry(e),
         },
       }, [])
+    },
+    genScoppedEditorEntry (e: any): ScopedSlotChildren {
+      const hasSlot = !!this.$scopedSlots.editorEntries
+
+      return hasSlot ? this.$scopedSlots.editorEntries!(e.item) : this.genDefaultEditorEntry(e)
+    },
+    genDefaultEditorEntry (e: any): VNode[] {
+      return [this.$createElement(
+        VSchemaEditorEntry,
+        {
+          props: {
+            itemMeta: e.item.meta,
+            itemOptionsMenu: this.getOptionsForItem(e.item.meta),
+            schemasDictionary: this.availableSchemas,
+            labelClass: this.entryLabelClass,
+          },
+          on: {
+            remove: this.onRemoveItem,
+            'make-empty': this.onMakeItemEmpty,
+            'make-null': this.onMakeItemNull,
+            'make-undfined': this.onMakeItemUndifined,
+            'move-up': this.onMoveItemUp,
+            'move-down': this.onMoveItemDown,
+            'move-first': this.onMoveItemFirst,
+            'move-last': this.onMoveItemLast,
+            'add-child': this.onAddChildToItem,
+            'update-key': this.onUpdateItemKey,
+            'update-value': this.onUpdateItemValue,
+          },
+        }
+      )]
     },
     modifyInternalValueItemParent (
       item: SchemaEditorItemMeta,
