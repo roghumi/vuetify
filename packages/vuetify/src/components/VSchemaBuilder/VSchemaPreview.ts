@@ -1,3 +1,4 @@
+import './VSchemaBuilder.scss'
 
 // Extensions
 import VSheet from '../VSheet/VSheet'
@@ -64,19 +65,11 @@ export default Vue.extend({
     },
     genPreviewFrame (content: VNode[]): VNode {
       return this.$createElement(
-        VSheet,
+        'div',
         {
-          staticClass: 'd-flex flex-column flex-grow-1 pa-5 overflow-auto',
+          staticClass: 'v-schema-builder-preview d-flex flex-column flex-grow-1 pa-5 overflow-auto',
           style: {
             background: 'repeating-linear-gradient(45deg, darkgrey, darkgrey 6px, grey 6px, grey 12px)',
-          },
-          props: {
-            width: '100%',
-            height: '100%',
-            maxWith: '100%',
-            maxHeight: '100%',
-            color: 'grey lighten-2',
-            tile: true,
           },
         },
         content

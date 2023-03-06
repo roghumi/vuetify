@@ -84,6 +84,7 @@ export default {
       objectPropertyAddChild: 'Add child node',
       acceptChanges: 'Accept Changes',
       cancelChanges: 'Revert Changes',
+      selectChildType: 'Select node type',
       optionsMenu: {
         copy: 'Copy',
         pasteAsChild: 'Paste as child',
@@ -104,6 +105,7 @@ export default {
       changeTypeWarning: 'Changing root object type to {0} will clear all current data, Are you sure you want to continue?',
       addRootChild: 'Add new child to root node',
       addChildToNode: 'Add child to node #{0}',
+      addChild: 'Add new child to the tree',
     },
   },
   schemaBuilder: {
@@ -119,6 +121,10 @@ export default {
       modePreview: 'Preview screen only',
       modeEditor: 'Schema editor only',
       modeCode: 'Code editor',
+      dynamics: 'Dynamic contents and values',
+      changeSlot: 'Component rendering slot',
+      settings: 'Component config',
+      settingsSearch: 'Search for property',
     },
   },
 }

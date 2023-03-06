@@ -1,21 +1,6 @@
 import Vue from 'vue'
 // Utilities
-import { getNestedValue } from '../../util/helpers'
-
-export function setNestedValue (context: any, obj: {[key: string]: any}, path: (string | number)[], def: any): any {
-  const last = path.length - 1
-
-  if (path.length === 1) return obj[path[0]] = def
-
-  for (let i = 0; i < last; i++) {
-    if (obj[path[i]] === undefined || obj[path[i]] === null) {
-      context.$set(obj, path[i], {})
-    }
-    obj = obj[path[i]]
-  }
-
-  context.$set(obj, path[last], def)
-}
+import { getNestedValue, setNestedValue } from '../../util/helpers'
 
 export default Vue.extend({
   data (): any {

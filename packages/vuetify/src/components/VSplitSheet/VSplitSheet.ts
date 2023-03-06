@@ -96,17 +96,12 @@ export default VSheet.extend({
         },
       )
     },
-    genSheetContentAtIndex (index: number): VNode {
+    genSheetContentAtIndex (index: number): VNode|VNode[] {
       const sheetIndex = index / 2
-      return this.$createElement(
-        'div',
-        {
-          style: {
-            [this.horizontal ? 'height' : 'width']: Math.floor(this.sheetWidths[index] * 100) + '%',
-          },
-        },
-        this.$scopedSlots['sheet' + sheetIndex]?.({ index: sheetIndex }) ?? ''
-      )
+      return this.$scopedSlots['sheet' + sheetIndex]?.({
+        index: sheetIndex,
+        [this.horizontal ? 'height' : 'width']: Math.round(this.sheetWidths[index] * 100) + '%',
+      }) || this.$createElement()
     },
     genNodeAtIndex (index: number): VNode|VNode[] {
       if (index % 2 === 0) {

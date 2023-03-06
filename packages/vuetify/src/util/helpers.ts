@@ -76,6 +76,21 @@ export function addPassiveEventListener (
   el.addEventListener(event, cb, passiveSupported ? options : false)
 }
 
+export function setNestedValue (context: any, obj: {[key: string]: any}, path: (string | number)[], def: any): any {
+  const last = path.length - 1
+
+  if (path.length === 1) return obj[path[0]] = def
+
+  for (let i = 0; i < last; i++) {
+    if (obj[path[i]] === undefined || obj[path[i]] === null) {
+      context.$set(obj, path[i], {})
+    }
+    obj = obj[path[i]]
+  }
+
+  context.$set(obj, path[last], def)
+}
+
 export function getNestedValue (obj: any, path: (string | number)[], fallback?: any): any {
   const last = path.length - 1
 

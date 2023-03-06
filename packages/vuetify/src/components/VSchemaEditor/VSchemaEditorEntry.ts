@@ -47,10 +47,6 @@ export default Vue.extend({
       type: String,
       default: 'd-flex flex-row col-sm-8 col-md-9 col-lg-10 pb-1 pt-2 ps-0',
     },
-    schemasDictionary: {
-      type: Object as PropType<{[key: string]: SchemaItemMaker }>,
-      default: null,
-    },
     ariaLabelObjectPropertyName: {
       type: String,
       default: '$vuetify.schemaEditor.ariaLabel.objectPropertyName',
@@ -83,6 +79,10 @@ export default Vue.extend({
       type: String,
       default: '$vuetify.schemaEditor.ariaLabel.cancelChanges',
     },
+    ariaLabelSelectChildType: {
+      type: String,
+      default: '$vuetify.schemaEditor.ariaLabel.selectChildType',
+    },
   },
 
   data () {
@@ -90,6 +90,7 @@ export default Vue.extend({
       internalKey: this.itemMeta.id,
       internalValue: typeof this.itemMeta.ref === 'object' ? null : this.itemMeta.ref,
       isKeyDirty: false,
+      schemasSearchTerm: '',
     }
   },
 
@@ -114,16 +115,19 @@ export default Vue.extend({
     acceptValueChange (v: any): void {
       this.$emit('update-value', v, this.itemMeta)
     },
-    genEntryOptionsMenu (): VNode {
+    genEntryOptionsMenu (btnProps: any = {}, iconProps: any = {}): VNode {
       return genOptionsMenu(
         this.$createElement,
-        ({ on }) => genTooltipIcon(
+        ({ on }) => genTooltipButton(
           this.$createElement,
           this.$vuetify.lang.t(this.ariaLabelObjectPropertyOptions),
           'mdi-dots-vertical',
           {
-            color: 'primary',
+            color: 'secondary',
+            icon: true,
+            ...btnProps,
           },
+          iconProps,
           on.click,
         ),
         this.itemOptionsMenu,
@@ -147,27 +151,19 @@ export default Vue.extend({
         }
       )
     },
-    genAddSchemaDialog (): VNode {
-      return genAddSchemaDialog(
+    genAddSchemaDialogBtn (btnProps: any = {}, iconProps: any = {}): VNode {
+      return genTooltipButton(
         this.$createElement,
-        ({ on }) => genTooltipIcon(
-          this.$createElement,
-          this.$vuetify.lang.t(this.ariaLabelObjectPropertyAddChild),
-          'mdi-plus',
-          {
-            color: 'success',
-          },
-          on.click,
-        ),
-        this.$vuetify.lang.t(this.messagesAddChildToNode, this.itemMeta.id),
-        this.$vuetify.lang.t(this.ariaLabelAddChildOk),
-        this.schemasDictionary,
-        {},
-        {},
-        {},
-        {},
-        (items: Array<SchemaItemMaker>) => {
-          this.$emit('add-child', items, this.itemMeta)
+        this.$vuetify.lang.t(this.ariaLabelObjectPropertyAddChild),
+        'mdi-plus-box',
+        {
+          color: 'success',
+          icon: true,
+          ...btnProps,
+        },
+        iconProps,
+        (e: MouseEvent) => {
+          this.$emit('add-child', this.itemMeta, e)
         }
       )
     },
@@ -283,7 +279,7 @@ export default Vue.extend({
             { staticClass: this.valueClass },
             [
               this.isKeyDirty || this.genEntryOptionsMenu(),
-              this.isKeyDirty || this.itemMeta.isLeaf || this.genAddSchemaDialog(),
+              this.isKeyDirty || this.itemMeta.isLeaf || this.genAddSchemaDialogBtn(),
               itemControl,
             ],
           ),

@@ -1,7 +1,9 @@
+import './VSchemaBuilder.scss'
 
 // Extensions
 import VTreeview from '../VTreeview/VTreeview'
 import VSystemBar from '../VSystemBar/VSystemBar'
+import { VToolbar, VToolbarItems, VToolbarTitle } from '../VToolbar'
 import VSpacer from '../VGrid/VSpacer'
 import VDivider from '../VDivider/VDivider'
 import VSheet from '../VSheet/VSheet'
@@ -10,15 +12,56 @@ import VSchemaBuilderEntry from './VSchemaBuilderEntry'
 import VSchemaPreview from './VSchemaPreview'
 import VLabel from '../VLabel/VLabel'
 import VSplitSheet from '../VSplitSheet/VSplitSheet'
+import VTextarea from '../VTextarea/VTextarea'
+import VBtn from '../VBtn/VBtn'
+import VTooltip from '../VTooltip/VTooltip'
+import { VCard, VCardTitle, VCardActions, VCardText } from '../VCard'
+import VIcon from '../VIcon/VIcon'
+import VDialog from '../VDialog/VDialog'
+import VAutocomplete from '../VAutocomplete/VAutocomplete'
+import VVirtualScroll from '../VVirtualScroll/VVirtualScroll'
+import VMenu from '../VMenu/VMenu'
+import VTextField from '../VTextField/VTextField'
+import VSchemaRenderer from '../VSchemaRenderer/VSchemaRenderer'
+import {
+  VList,
+  VListGroup,
+  VListItem,
+  VListItemAction,
+  VListItemAvatar,
+  VListItemIcon,
+  VListItemGroup,
+  VListItemContent,
+  VListItemTitle,
+} from '../VList'
+import {
+  VTabs,
+  VTab,
+  VTabsItems,
+  VTabItem,
+  VTabsSlider,
+} from '../VTabs'
 
 // Utils
-import { genTooltipButton, genOptionsMenu, SchemaEditorMenuOptionItem } from '../VSchemaEditor/helpers'
+import {
+  genConfirmDialog,
+  genAddSchemaDialog,
+  SchemaEditorItemMeta,
+  genTooltipButton, genOptionsMenu, SchemaEditorMenuOptionItem, getSchemaFromString, getStringFromSchema,
+  isStringParsableFunction,
+} from '../VSchemaEditor/helpers'
+import { genBuilderComponentSettingsDialog } from './helpers'
 import { DefaultScreenSizeDictionary, ScreenSize, ScreenSizeProperties } from './screenSizes'
+import { mergeDeep, genRandomId, getNestedValue, setNestedValue } from '../../util/helpers'
+import { syntaxHighlightJsonString } from './syntaxHighlight'
+import Renderer from './../../mixins/renderer'
+import DynamicContext from './../../mixins/renderer/DynamicContext'
+import mixins from '../../util/mixins'
 
 // Types
 import { PropType, VNode } from 'vue'
 import { AsyncComponentFactory } from 'vue/types/options'
-import { mergeDeep } from '../../util/helpers'
+import { SchemaItemMaker } from 'types/services/renderer'
 
 export enum SchemaBuilderViewMode {
   Full = 'full',
@@ -28,13 +71,17 @@ export enum SchemaBuilderViewMode {
 }
 
 /* @vue/component */
-export default VSchemaEditor.extend({
+export default mixins(
+  Renderer,
+  DynamicContext,
+  VSchemaEditor,
+).extend({
   name: 'v-schema-builder',
 
   props: {
     label: String,
     schemasDictionary: {
-      type: Object as PropType<{[key: string]: AsyncComponentFactory }>,
+      type: Object as PropType<{[key: string]: SchemaItemMaker }>,
       default: null,
     },
     screenSizeDictionary: {
@@ -97,10 +144,32 @@ export default VSchemaEditor.extend({
       type: String,
       default: '$vuetify.schemaBuilder.ariaLabel.modeEditor',
     },
+    ariaLabelSettings: {
+      type: String,
+      default: '$vuetify.schemaBuilder.ariaLabel.settings',
+    },
+    ariaLabelSlots: {
+      type: String,
+      default: '$vuetify.schemaBuilder.ariaLabel.changeSlot',
+    },
+    ariaLabelDynamics: {
+      type: String,
+      default: '$vuetify.schemaBuilder.ariaLabel.dynamics',
+    },
+    ariaLabelSettingsSearch: {
+      type: String,
+      default: '$vuetify.schemaBuilder.ariaLabel.settingsSearch',
+    },
   },
   data () {
     return {
       internalValue: mergeDeep({}, this.value),
+      settingsDialogTarget: null as any,
+      slotsDialogTarget: null as any,
+      dynamicsDialogTarget: null as any,
+      settingsDialogSearch: '',
+      dynamicsDialogSearch: '',
+      dynamicsTabIndex: 0,
       screenSize: this.valueScreenSize,
       viewMode: this.valueViewMode,
       viewModesDictionary: {
@@ -168,6 +237,47 @@ export default VSchemaEditor.extend({
   },
 
   methods: {
+    isFunctionalChildren (children: any): boolean {
+      return typeof children === 'function' ||
+        (typeof children === 'string' && isStringParsableFunction(children))
+    },
+    onAddChildToItem (schemas: Array<SchemaItemMaker>, item: SchemaEditorItemMeta) {
+      schemas.forEach((schema: SchemaItemMaker) => {
+        if (item?.parent && !item?.isRoot) {
+          if (item?.type === 'array') {
+            item.ref.push(schema.genNewEmptyItem())
+          } else {
+            if (item.ref.children) {
+              item.ref.children.push(schema.genNewEmptyItem())
+            }
+          }
+        } else {
+          if (!this.internalValue.children) {
+            this.internalValue.children = []
+          }
+          this.internalValue.children.push(schema.genNewEmptyItem())
+        }
+        this.$emit('input', this.internalValue)
+      })
+    },
+    onShowSlotsDialog (item: SchemaEditorItemMeta) {
+      this.slotsDialogTarget = item
+      if (this.$refs.slotsDialog) {
+        this.$set(this.$refs.slotsDialog, 'isActive', true)
+      }
+    },
+    onShowSettingsDialog (item: SchemaEditorItemMeta) {
+      this.settingsDialogTarget = item
+      if (this.$refs.settingsDialog) {
+        this.$set(this.$refs.settingsDialog, 'isActive', true)
+      }
+    },
+    onShowDynamicsDialog (item: SchemaEditorItemMeta) {
+      this.dynamicsDialogTarget = item
+      if (this.$refs.dynamicsDialog) {
+        this.$set(this.$refs.dynamicsDialog, 'isActive', true)
+      }
+    },
     genTreeview (): VNode {
       return this.$createElement(VTreeview, {
         props: {
@@ -175,7 +285,7 @@ export default VSchemaEditor.extend({
           dense: this.dense,
         },
         scopedSlots: {
-          label: e => this.genScoppedEditorEntry(e),
+          label: (e: any) => this.genScoppedEditorEntry(e),
         },
       }, [])
     },
@@ -286,7 +396,6 @@ export default VSchemaEditor.extend({
           props: {
             itemMeta: e.item.meta,
             itemOptionsMenu: this.getOptionsForItem(e.item.meta),
-            schemasDictionary: this.availableSchemas,
             labelClass: this.entryLabelClass,
           },
           on: {
@@ -298,30 +407,284 @@ export default VSchemaEditor.extend({
             'move-down': this.onMoveItemDown,
             'move-first': this.onMoveItemFirst,
             'move-last': this.onMoveItemLast,
-            'add-child': this.onAddChildToItem,
+            'add-child': this.onShowAddChildDialog,
             'update-key': this.onUpdateItemKey,
             'update-value': this.onUpdateItemValue,
+            dynamics: this.onShowDynamicsDialog,
+            settings: this.onShowSettingsDialog,
+            slots: this.onShowSlotsDialog,
           },
         }
       )]
     },
     genToolbar (): VNode {
       return this.$createElement(
-        VSystemBar,
+        VToolbar,
         {
-          props: {},
+          props: {
+            dense: true,
+            height: '42px',
+          },
         },
         [
           this.genViewModeButton(),
-          this.$createElement(VLabel, { props: {} }, [this.label]),
-          this.$createElement(VSpacer, { staticClass: 'me-3' }, []),
-          ...this.genPreviewModeButtons(),
-          this.$createElement(VDivider, { staticClass: 'mx-2', props: { vertical: true } }),
           this.hideAddChildBtn || this.genAddChildToolbarBtn(),
           this.$createElement(VDivider, { staticClass: 'mx-2', props: { vertical: true } }),
-          this.hideDownloadBtn || this.genDownloadToolbarBtn(),
-          this.hideUploadBtn || this.genUploadToolbarBtn(),
-          this.hideClearBtn || this.genClearToolbarBtn(),
+          this.$createElement(
+            VToolbarTitle,
+            {},
+            this.label
+          ),
+          this.$createElement(VSpacer, { staticClass: 'me-3' }, []),
+          this.$createElement(
+            VToolbarItems,
+            {},
+            [
+              ...this.genPreviewModeButtons(),
+              this.$createElement(VDivider, { staticClass: 'mx-2', props: { vertical: true } }),
+              this.hideDownloadBtn || this.genDownloadToolbarBtn(),
+              this.hideUploadBtn || this.genUploadToolbarBtn(),
+              this.hideClearBtn || this.genClearToolbarBtn(),
+            ]
+          ),
+          // this.$createElement(VLabel, { props: {} }, []),
+        ]
+      )
+    },
+    genSlotsDialog (): VNode {
+      return this.$createElement(
+        VDialog,
+        {
+          props: {
+            maxWidth: '640px',
+          },
+          ref: 'slotsDialog',
+        },
+        [
+          this.$createElement(VCard, {
+            props: {
+            },
+          }, [
+            this.$createElement(VCardTitle, {}, this.$vuetify.lang.t(this.ariaLabelSlots)),
+            this.$createElement(VDivider, {}),
+            this.$createElement(VCardText, {}, [
+            ]),
+          ]),
+        ]
+      )
+    },
+    genSettingsDialog (): VNode {
+      const settings = this.schemasDictionary[this.settingsDialogTarget?.ref?.tag]
+      return this.$createElement(
+        VDialog,
+        {
+          props: {
+            maxWidth: '640px',
+          },
+          ref: 'settingsDialog',
+        },
+        [
+          this.$createElement(VCard, {
+            props: {
+            },
+          }, [
+            this.$createElement(VCardTitle, {}, this.$vuetify.lang.t(this.ariaLabelSettings)),
+            this.$createElement(VDivider, {}),
+            this.$createElement(VCardText, {}, [
+              this.$createElement(VTextField, {
+                props: {
+                  dense: true,
+                  fullWidth: true,
+                  label: this.$vuetify.lang.t(this.ariaLabelSettingsSearch),
+                  hideDetails: 'auto',
+                  value: this.settingsDialogSearch,
+                },
+                on: {
+                  change: (s: string) => {
+                    this.settingsDialogSearch = s
+                  },
+                },
+              }),
+              this.$createElement(VVirtualScroll, {
+                props: {
+                  items: (settings?.form?.children ?? [])
+                    .filter((c: any) => this.settingsDialogSearch?.length === 0 || c.id?.includes(this.settingsDialogSearch)),
+                  itemHeight: '72px',
+                  height: '320px',
+                },
+                scopedSlots: {
+                  default: (item: any) => {
+                    const dynoPath = this.settingsDialogTarget?.path.replace('root', 'internalValue') + '.props.$(' + item.item.id + ')'
+                    const dynoValue = getNestedValue(this, dynoPath.split('.'))
+                    const isDynoValue = this.isFunctionalChildren(dynoValue)
+
+                    const inputNode = this.genComponentFromSchema(this, {
+                      ...(item?.item ?? {}),
+                      'v-model': {
+                        get: (context: any) => {
+                          const path = context.settingsDialogTarget?.path.replace('root', 'internalValue') + '.props.' + item.item.id
+                          return getNestedValue(context, path.split('.'))
+                        },
+                        set: (context: any, value: any) => {
+                          const path = context.settingsDialogTarget?.path.replace('root.', '') + '.props.' + item.item.id
+                          setNestedValue(context, context.internalValue, path.split('.'), value)
+                        },
+                      },
+                    })
+
+                    const dynamoBtn = genTooltipButton(
+                      this.$createElement,
+                      this.$vuetify.lang.t(this.ariaLabelDynamics),
+                      isDynoValue ? 'mdi-pipe' : 'mdi-pipe-disconnected',
+                      {
+                        icon: true,
+                        small: true,
+                        color: isDynoValue ? 'green' : undefined,
+                      },
+                      {
+                        small: true,
+                      },
+                      () => {
+                      }
+                    )
+                    // if (isDynoValue) {
+                    //   inputNode.data.props.disabled = true
+                    // }
+                    // console.log(item.item, inputNode, dynoPath, dynoValue, isDynoValue)
+
+                    return this.$createElement('div', {
+                      staticClass: 'd-flex flex-row align-center justify-start',
+                    }, [
+                      dynamoBtn,
+                      inputNode,
+                    ])
+                  },
+                },
+              }),
+            ]),
+          ]),
+        ]
+      )
+    },
+    genDynamicsDialog (): VNode {
+      return this.$createElement(
+        VDialog,
+        {
+          props: {
+            maxWidth: '640px',
+          },
+          ref: 'dynamicsDialog',
+        },
+        [
+          this.$createElement(VCard, {
+            props: {
+            },
+          }, [
+            this.$createElement(VCardTitle, {}, this.$vuetify.lang.t(this.ariaLabelDynamics)),
+            this.$createElement(VDivider, {}),
+            this.$createElement(VCardText, {
+              staticClass: 'mb-1',
+            }, [
+              this.$createElement(VTabs, {
+                props: {
+                  value: this.dynamicsTabIndex,
+                },
+                on: {
+                  change: (e: any) => {
+                    this.dynamicsTabIndex = e
+                  },
+                },
+              }, [
+                this.$createElement(VTab, {}, ['V-Model']),
+                this.$createElement(VTab, {}, ['Content']),
+              ]),
+              this.$createElement(VTabsItems, {
+                props: {
+                  value: this.dynamicsTabIndex,
+                },
+              }, [
+                this.$createElement(VTabItem, {}, [
+                  this.genComponentFromSchema(this, {
+                    tag: 'VForm',
+                    children: [
+                      {
+                        tag: 'VTextField',
+                        props: {
+                          hideDetails: 'auto',
+                          label: 'Property name',
+                          hint: 'Property name for v-model',
+                        },
+                      },
+                      {
+                        tag: 'VTextField',
+                        props: {
+                          hideDetails: 'auto',
+                          label: 'Property event name for v-model',
+                        },
+                      },
+                      {
+                        tag: 'VTextarea',
+                        staticClass: 'v-schema-builder-code',
+                        style: {
+                          fontFamily: 'courier',
+                          fontSize: '12px',
+                        },
+                        props: {
+                          hideDetails: 'auto',
+                          label: 'Property Get script',
+                        },
+                      },
+                      {
+                        tag: 'VTextarea',
+                        staticClass: 'v-schema-builder-code',
+                        style: {
+                          fontFamily: 'courier',
+                          fontSize: '12px',
+                        },
+                        props: {
+                          hideDetails: 'auto',
+                          label: 'Property Set script',
+                        },
+                      },
+                    ],
+                  }),
+                ]),
+                this.$createElement(VTabItem, {}, [
+                  this.genComponentFromSchema(this, {
+                  }),
+                ]),
+              ]),
+            ]),
+          ]),
+        ]
+      )
+    },
+    genCodeEditor (): VNode {
+      const jsonString = getStringFromSchema(this.internalValue)
+      return this.$createElement(
+        'div',
+        {
+          staticClass: 'd-flex flex-grow-1',
+          style: {
+            // position: 'relative',
+          },
+        },
+        [
+          // syntaxHighlightJsonString(this.$createElement, jsonString),
+          this.$createElement(
+            VTextarea,
+            {
+              staticClass: 'v-schema-builder-code',
+              style: {
+                fontFamily: 'courier',
+                fontSize: '12px',
+              },
+              props: {
+                rows: 30,
+                value: jsonString,
+              },
+            },
+          ),
         ]
       )
     },
@@ -331,16 +694,22 @@ export default VSchemaEditor.extend({
           VSplitSheet,
           {
             props: {
-              sheets: ((this.isSchemaEditorVisible ? 1 : 0) + (this.isPreviewVisible ? 1 : 0)),
               value: [0.3],
+              maxWidth: '100%',
             },
             scopedSlots: {
-              sheet0: sheet => {
-                return this.genSchemaEditor()
-              },
-              sheet1: sheet => {
-                return this.genPreviewScreen()
-              },
+              sheet0: ({ index, width }) => this.$createElement('div', {
+                style: {
+                  overflowX: 'scroll',
+                  width,
+                },
+              }, [this.genSchemaEditor()]),
+              sheet1: ({ index, width }) => this.$createElement('div', {
+                style: {
+                  overflowX: 'scroll',
+                  width,
+                },
+              }, [this.genPreviewScreen()]),
             },
           },
         ),
@@ -353,6 +722,10 @@ export default VSchemaEditor.extend({
       VSheet, {
       },
       [
+        this.genAddChildDialog(),
+        this.genSettingsDialog(),
+        this.genSlotsDialog(),
+        this.genDynamicsDialog(),
         this.genToolbar(),
         h(
           'div',
@@ -360,7 +733,7 @@ export default VSchemaEditor.extend({
             staticClass: 'd-flex flex-row flex-grow-1',
           },
           [
-            (this.isSchemaEditorVisible || this.isPreviewVisible) ? this.genSplitSheet() : false,
+            !this.isCodeEditorVisible ? this.genSplitSheet() : this.genCodeEditor(),
           ]),
       ])
   },

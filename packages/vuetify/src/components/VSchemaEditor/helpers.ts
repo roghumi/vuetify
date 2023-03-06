@@ -25,9 +25,12 @@ import {
 
 import { CreateElement } from 'vue/types/umd'
 import { ScopedSlot } from 'vue/types/vnode'
-import { SchemaItemMaker } from 'types/services/renderer'
+import { SchemaItemMaker, RendererableSchema } from 'types/services/renderer'
+import VVirtualScroll from '../VVirtualScroll/VVirtualScroll'
+import VTextField from '../VTextField/VTextField'
 
 export type AddSchemaDialogCallback = (schemas: Array<SchemaItemMaker>) => void
+export type SchemaSearchDialogCallback = (search: string) => void
 
 export interface SchemaEditorItemMeta {
   id: string
@@ -105,7 +108,7 @@ export function genOptionsMenu (
 
 export function genAddSchemaDialog (
   h: CreateElement,
-  activator: ScopedSlot,
+  activator: ScopedSlot|undefined,
   message: string,
   ok: string,
   schemasDictionary: { [key: string]: SchemaItemMaker },
@@ -113,16 +116,16 @@ export function genAddSchemaDialog (
   cardProps: any,
   okProps: any,
   autocompleteProps: any,
-  onAddItems: AddSchemaDialogCallback
+  onAddItems: AddSchemaDialogCallback,
+  onFilterItemsCallback: SchemaSearchDialogCallback
 ): VNode {
-  let itemsToAdd: Array<SchemaItemMaker> = []
   return h(
     VDialog,
     {
       props: {
         ...dialogProps,
       },
-      ref: 'genAddSchemaDialog',
+      ref: 'addChildDialog',
       scopedSlots: {
         activator,
       },
@@ -132,35 +135,47 @@ export function genAddSchemaDialog (
         h(VCardTitle, {}, [message]),
         h(VDivider, {}),
         h(VCardText, {}, [
-          h(VAutocomplete, {
+          h(VTextField, {
             props: {
-              items: Object.entries(schemasDictionary ?? {}).map(e => (e[1])),
-              returnObject: true,
-              itemText: 'title',
-              itemValue: 'id',
-              ...(autocompleteProps ?? {}),
+              dense: true,
+              fullWidth: true,
+              label: 'Search',
+              hideDetails: 'auto',
             },
             on: {
-              change: (e: any) => {
-                if (Array.isArray(e)) {
-                  itemsToAdd = e
-                } else {
-                  itemsToAdd = [e]
-                }
+              change: (s: string) => {
+                onFilterItemsCallback(s)
               },
             },
           }),
-        ]),
-        h(VDivider, {}),
-        h(VCardActions, { staticClass: 'd-flex flex-row align-center justify-center' }, [
-          h(VBtn, {
-            props: okProps,
-            on: {
-              click: (e: any) => {
-                onAddItems(itemsToAdd)
-              },
+          h(VVirtualScroll, {
+            props: {
+              items: Object.entries(schemasDictionary ?? {}).map(e => (e[1])),
+              itemHeight: '32px',
+              height: '140px',
+              ...(autocompleteProps ?? {}),
             },
-          }, [ok]),
+            scopedSlots: {
+              default: (item: any) => h(
+                VListItem,
+                {
+                  props: {
+                    dense: true,
+                  },
+                  on: {
+                    click: () => {
+                      onAddItems([item.item])
+                    },
+                  },
+                },
+                [
+                  h(VListItemContent, {}, [
+                    h(VListItemTitle, {}, item?.item?.title),
+                  ]),
+                ]
+              ),
+            },
+          }),
         ]),
       ]),
     ]
@@ -273,4 +288,46 @@ export function genTooltipButton (
       tooltip,
     ]
   )
+}
+
+export function getStringFromSchema (schema: any): string {
+  const FN_DELIMETER_START = '/$fnstrt('
+  const FN_DELIMETER_END = ')$fnnd/'
+  return JSON.stringify(schema, (key, value) => {
+    if (typeof value === 'function') {
+      return `${FN_DELIMETER_START}${value
+        .toString()
+        .replaceAll('\n', ' ')
+        .replaceAll('  ', '')}${FN_DELIMETER_END}`
+    }
+    return value
+  }, 2)
+}
+
+export function getSchemaFromString (serialized: string): RendererableSchema|null {
+  const FN_DELIMETER_START = '/$fnstrt('
+  const FN_DELIMETER_END = ')$fnnd/'
+  return JSON.parse(serialized, (key, value) => {
+    if (
+      typeof value === 'string' &&
+      value.startsWith(FN_DELIMETER_START) &&
+      value.endsWith(FN_DELIMETER_END)
+    ) {
+      // eslint-disable-next-line no-new-func
+      return new Function(
+        'return ' +
+          value.substring(
+            FN_DELIMETER_START.length,
+            value.length - FN_DELIMETER_END.length
+          )
+      )()
+    }
+    return value
+  })
+}
+
+export function isStringParsableFunction (str: string): boolean {
+  const FN_DELIMETER_START = '/$fnstrt('
+  const FN_DELIMETER_END = ')$fnnd/'
+  return str.startsWith(FN_DELIMETER_START) && str.endsWith(FN_DELIMETER_END)
 }

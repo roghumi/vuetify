@@ -1,5 +1,5 @@
 import Vue from 'vue'
-import { VNodeChildren, VNode } from 'vue/types'
+import { VNodeChildren, VNode, ScopedSlot } from 'vue/types'
 import { VNodeData } from 'vue/types/umd'
 import { AsyncComponentFactory, PropType, AsyncComponent, Component } from 'vue/types/options'
 import { RendererableSchema, RendererDynamicProperty, RendererDynamicUpdate } from 'types/services/renderer'
@@ -112,12 +112,16 @@ export default Vue.extend({
       }, {})
     },
     createSchemaAttributes (context: Component, schema: RendererableSchema): {[key: string]: any} {
-      const scoppedSlots: VNode[] = []
-      if (schema && Array.isArray(schema?.children)) {
-        scoppedSlots.concat(...schema.children.filter(child => this.isChildInScoppedSlots(child))
-          .filter(child => this.shouldRenderComponent(child))
-          .map(child => this.$createElement('template', { slot: child.slot }, [this.genComponentFromSchema(context, child)]))
-        )
+      const scoppedSlots: { [key: string]: ScopedSlot | undefined } = {}
+      if (schema && schema.scopedSlots) {
+        Object.entries(schema.scopedSlots).forEach((e: any) => {
+          if (typeof e[1] === 'object') {
+            scoppedSlots[e[0]] = (props: any) => (this.genComponentFromSchema(context, e[1]))
+          }
+        })
+        // .filter(child => this.isChildInScoppedSlots(child))
+        // .filter(child => this.shouldRenderComponent(child)
+        // .map(child => this.$createElement('template', { slot: child.slot }, [this.genComponentFromSchema(context, child)])))
       }
       const props = this.evaluateComponentProps(context, schema?.props ?? {})
       const on = this.evaluateComponentProps(context, schema?.on ?? {})
@@ -125,9 +129,6 @@ export default Vue.extend({
 
       if (schema?.['v-model']) {
         props[schema['v-model-property-name'] ?? this.defaultModelProperyName] = this.evaluateDynamicValue(context, schema['v-model'].get)
-        if (!props.on) {
-          props.on = {}
-        }
         on[schema['v-model-event-name'] ?? this.defaultModelEventName] = (value: any) => {
           if (schema?.['v-model']) {
             this.updateDynamicModel(context, schema['v-model'].set, value)
@@ -162,6 +163,11 @@ export default Vue.extend({
         .filter(child => !this.isChildInScoppedSlots(child))
         .filter(child => this.shouldRenderComponent(child))
         .map(child => this.genComponentFromSchema(context, child))
+        .concat(
+          (parent.children ?? []).filter(child => this.isChildInScoppedSlots(child))
+            .filter(child => this.shouldRenderComponent(child))
+            .map(child => this.$createElement('template', { slot: child.slot }, [this.genComponentFromSchema(context, child)]))
+        )
     },
     genComponentFromSchema (context: Component, schema: RendererableSchema): VNode {
       return this.$createElement(

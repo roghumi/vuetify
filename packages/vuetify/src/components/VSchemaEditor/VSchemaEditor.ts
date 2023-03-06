@@ -32,7 +32,10 @@ export default VSheet.extend({
 
   props: {
     label: String,
+    hint: String,
     dense: Boolean,
+    selected: Boolean,
+    selectedClass: String,
     rootType: {
       type: String as PropType<SchemaRootType>,
       default: 'object',
@@ -132,6 +135,10 @@ export default VSheet.extend({
       type: String,
       default: '$vuetify.schemaEditor.ariaLabel.optionsMenu.remove',
     },
+    ariaLabelSelectChildType: {
+      type: String,
+      default: '$vuetify.schemaEditor.ariaLabel.selectChildType',
+    },
     messageClearWarning: {
       type: String,
       default: '$vuetify.schemaEditor.message.clearWarning',
@@ -142,7 +149,7 @@ export default VSheet.extend({
     },
     messageAddRootChild: {
       type: String,
-      default: '$vuetify.schemaEditor.message.addRootChild',
+      default: '$vuetify.schemaEditor.message.addChild',
     },
   },
 
@@ -150,10 +157,24 @@ export default VSheet.extend({
     return {
       internalValue: Array.isArray(this.value) ? mergeDeep([], this.value) : mergeDeep({}, this.value),
       internalRootType: Array.isArray(this.value) ? 'array' : 'object',
+      schemasSearchTerm: '',
+      addChildDialogTarget: null as any,
     }
   },
 
   computed: {
+    filterredSchemas (): {[key: string]: SchemaItemMaker } {
+      if (this.schemasSearchTerm.length > 0) {
+        return Object.entries(this.availableSchemas).reduce((filterred, e) => {
+          if (e[0].includes(this.schemasSearchTerm)) {
+            filterred[e[0]] = e[1]
+          }
+          return filterred
+        }, {} as {[key: string]: SchemaItemMaker })
+      }
+
+      return this.schemasDictionary
+    },
     availableSchemas (): {[key: string]: any} {
       return {
         ...(this.schemasDictionary ?? {}),
@@ -253,9 +274,15 @@ export default VSheet.extend({
       }
       this.$emit('input', this.internalValue)
     },
-    onAddChildToItem (schemas: Array<SchemaItemMaker>, item: SchemaEditorItemMeta) {
+    onShowAddChildDialog (item?: SchemaEditorItemMeta) {
+      this.addChildDialogTarget = item
+      if (this.$refs.addChildDialog) {
+        this.$refs.addChildDialog.$set(this.$refs.addChildDialog, 'isActive', true)
+      }
+    },
+    onAddChildToItem (schemas: Array<SchemaItemMaker>, item?: SchemaEditorItemMeta) {
       schemas.forEach((schema: SchemaItemMaker) => {
-        if (item.parent && !item.isRoot) {
+        if (item?.parent && !item?.isRoot) {
           if (item.type === 'array') {
             item.ref.push(schema.genNewEmptyItem())
           } else {
@@ -263,9 +290,9 @@ export default VSheet.extend({
           }
         } else {
           if (Array.isArray(this.internalValue)) {
-            this.$set(this.internalValue, genRandomId(), schema.genNewEmptyItem())
-          } else {
             this.internalValue.push(schema.genNewEmptyItem())
+          } else {
+            this.$set(this.internalValue, genRandomId(), schema.genNewEmptyItem())
           }
         }
         this.$emit('input', this.internalValue)
@@ -398,6 +425,7 @@ export default VSheet.extend({
         this.$vuetify.lang.t(this.ariaLabelClearAccept),
         this.$vuetify.lang.t(this.ariaLabelClearCancel),
         {
+          width: '480px',
         },
         {
           color: 'warning',
@@ -468,57 +496,49 @@ export default VSheet.extend({
       )
     },
     genAddChildToolbarBtn (): VNode {
-      return genAddSchemaDialog(
+      return genTooltipButton(
         this.$createElement,
-        ({ on }) => genTooltipButton(
-          this.$createElement,
-          this.$vuetify.lang.t(this.ariaLabelAddChild),
-          'mdi-plus',
-          {
-            icon: true,
-            xSmall: true,
-            color: 'success',
-          },
-          {
-            xSmall: true,
-            color: 'success',
-          },
-          on.click
-        ),
-        this.$vuetify.lang.t(this.messageAddRootChild),
-        this.$vuetify.lang.t(this.ariaLabelAddChildOk),
-        this.availableSchemas,
-        {},
-        {},
-        {},
-        {},
-        (schemas: Array<SchemaItemMaker>) => {
-          schemas.forEach((schema: SchemaItemMaker) => {
-            if (this.internalRootType === 'object') {
-              this.$set(this.internalValue, genRandomId(), schema.genNewEmptyItem())
-            } else {
-              this.internalValue.push(schema.genNewEmptyItem())
-            }
-            this.$emit('input', this.internalValue)
-          })
+        this.$vuetify.lang.t(this.ariaLabelAddChild),
+        'mdi-plus-box',
+        {
+          icon: true,
+          xSmall: true,
+          color: 'success',
         },
+        {
+          xSmall: true,
+          color: 'success',
+        },
+        (e: MouseEvent) => {
+          this.onShowAddChildDialog()
+        }
       )
     },
     genToolbar (): VNode {
       return this.$createElement(
-        VSystemBar,
+        'div',
         {
+          staticClass: 'd-flex flex-column',
         },
         [
-          this.$createElement(VLabel, { props: {} }, [this.label]),
-          this.$createElement(VSpacer, { staticClass: 'me-3' }, []),
-          this.$slots?.toolbarButtons,
-          this.hideAddChildBtn || this.genAddChildToolbarBtn(),
-          this.hideRootSwitchBtn || this.genChangeRootToolbarBtn(),
-          this.$createElement(VDivider, { staticClass: 'mx-2', props: { vertical: true } }),
-          this.hideDownloadBtn || this.genDownloadToolbarBtn(),
-          this.hideUploadBtn || this.genUploadToolbarBtn(),
-          this.hideClearBtn || this.genClearToolbarBtn(),
+          this.$createElement(
+            'div',
+            {
+              staticClass: 'd-flex flex-row align-center',
+            },
+            [
+              this.$createElement(VLabel, { }, [this.label]),
+              // this.$createElement(VSpacer, { staticClass: 'me-3' }, []),
+              this.$slots?.toolbarButtons,
+              this.hideAddChildBtn || this.genAddChildToolbarBtn(),
+              this.hideRootSwitchBtn || this.genChangeRootToolbarBtn(),
+              this.$createElement(VDivider, { staticClass: 'mx-2', props: { vertical: true } }),
+              this.hideDownloadBtn || this.genDownloadToolbarBtn(),
+              this.hideUploadBtn || this.genUploadToolbarBtn(),
+              this.hideClearBtn || this.genClearToolbarBtn(),
+            ]
+          ),
+          this.$createElement('span', { staticClass: 'subtitle' }, [this.hint]),
         ]
       )
     },
@@ -532,6 +552,29 @@ export default VSheet.extend({
           label: e => this.genScoppedEditorEntry(e),
         },
       }, [])
+    },
+    genAddChildDialog (): VNode {
+      return genAddSchemaDialog(
+        this.$createElement,
+        undefined,
+        this.$vuetify.lang.t(this.messageAddRootChild),
+        this.$vuetify.lang.t(this.ariaLabelAddChildOk),
+        this.filterredSchemas,
+        {
+          maxWidth: '480px',
+        },
+        {},
+        {},
+        {
+          label: this.$vuetify.lang.t(this.ariaLabelSelectChildType),
+        },
+        (items: Array<SchemaItemMaker>) => {
+          this.onAddChildToItem(items, this.addChildDialogTarget)
+        },
+        (search: string): void => {
+          this.schemasSearchTerm = search
+        }
+      )
     },
     genScoppedEditorEntry (e: any): ScopedSlotChildren {
       const hasSlot = !!this.$scopedSlots.editorEntries
@@ -557,7 +600,7 @@ export default VSheet.extend({
             'move-down': this.onMoveItemDown,
             'move-first': this.onMoveItemFirst,
             'move-last': this.onMoveItemLast,
-            'add-child': this.onAddChildToItem,
+            'add-child': this.onShowAddChildDialog,
             'update-key': this.onUpdateItemKey,
             'update-value': this.onUpdateItemValue,
           },
@@ -598,6 +641,7 @@ export default VSheet.extend({
     return h('div', {
       staticClass: 'd-flex flex-column justify-start',
     }, [
+      this.genAddChildDialog(),
       this.genToolbar(),
       this.genTreeview(),
     ])
